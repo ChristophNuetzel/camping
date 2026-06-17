@@ -46,6 +46,12 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
 
   await page.getByRole('textbox', { name: 'Abreisedatum' }).click();
   await page.getByText('12', { exact: true }).click();
+  
+  await page.getByRole('button', { name: 'suche' }).click();
+  
+  await page.waitForLoadState('networkidle');
+
+await page.waitForTimeout(5000); 
 
   // Suche starten
   const pageText = await page.textContent("body");
