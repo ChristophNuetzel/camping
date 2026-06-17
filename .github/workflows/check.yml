@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -19,13 +19,10 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      - name: Run Playwright Tests
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+      - name: Run tests
         run: npx playwright test example.spec.js
