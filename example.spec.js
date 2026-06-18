@@ -29,7 +29,8 @@ test('test', async ({ page }) => {
   //await page.getByRole('button', { name: 'Accept all' }).click();
   
   //Stellplatz wählen
-  await page.locator('button:has-text("Stellplatz")').click();
+  await page.getByRole('button', { name: 'Wählen' }).click();
+  await page.getByRole('strong').filter({ hasText: 'Stellplatz' }).click();
 	
   //Personen wählen 2x
   await page.locator('.dropdown-toggle.form-control.d-flex.justify-content-between.click-me').click();
