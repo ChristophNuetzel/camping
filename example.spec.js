@@ -1,4 +1,6 @@
 import { test } from '@playwright/test';
+import fs from 'fs';
+import { test } from '@playwright/test';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
@@ -76,7 +78,7 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
   
   await page.waitForLoadState('networkidle');
 
-await page.waitForTimeout(5000); 
+  await page.waitForTimeout(5000); 
 
   // Suche starten
   const pageText = await page.textContent("body");
@@ -90,5 +92,28 @@ await page.waitForTimeout(5000);
   await sendTelegram(
   `🧪 TEST RUN\nVerfügbarkeit: ${isAvailable ? "JA" : "NEIN"}`
   );
+
+  test('Verfügbarkeit prüfen', async ({ page }) => {
+ // ... dein gesamter Ablauf bis zur Auswertung
+
+ const pageText = await page.textContent('body');
+ const isAvailable =
+   pageText.includes('Im ausgewählten Zeitraum verfügbar') ||
+   pageText.includes('available in the selected period');
+
+ console.log('Available:', isAvailable);
+
+ // Ensure results folder exists
+ if (!fs.existsSync('test-results')) {
+   fs.mkdirSync('test-results', { recursive: true });
+ }
+
+ // EIN Screenshot der letzten Seite (letzter Schritt)
+ const screenshotPath = `test-results/final-${Date.now()}.png`;
+ await page.screenshot({ path: screenshotPath, fullPage: true });
+
+ // optional: Telegram-Text senden (ohne Bildanhang, Bild ist als Artifact verfügbar)
+ await sendTelegram(`🧪 TEST RUN\nVerfügbarkeit: ${isAvailable ? 'JA' : 'NEIN'}`);
+});
 
 });
