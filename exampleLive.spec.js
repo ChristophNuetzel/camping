@@ -37,7 +37,6 @@ test('test', async ({ page }) => {
   //Personen wählen 2x
   await page.locator('.dropdown-toggle.form-control.d-flex.justify-content-between.click-me').click();
   await page.getByRole('button', { name: 'add_circle' }).first().click();
-  await page.getByRole('button', { name: 'add_circle' }).first().click();
   await page.getByRole('button', { name: 'Bestätigen' }).click();
   
   //Wähle Ankunftsdatum
