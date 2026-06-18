@@ -1,0 +1,48 @@
+name: Playwright Live
+
+on:
+ schedule:
+   - cron: "*/10 * * * *"
+ workflow_dispatch:
+
+jobs:
+ test:
+   runs-on: ubuntu-latest
+
+   steps:
+     - name: Checkout
+       uses: actions/checkout@v4
+       with:
+        ref: main
+        fetch-depth: 0
+
+     - name: Setup Node
+       uses: actions/setup-node@v4
+       with:
+         node-version: 20
+
+     - name: Install dependencies
+       run: npm ci
+
+     - name: Install form data
+       run: npm install form-data
+
+     - name: Prepare results folder
+       run: mkdir -p test-results
+
+     - name: Install Playwright Browsers (direct)
+       run: node node_modules/@playwright/test/cli.js install chromium
+       
+     - name: Run Live
+       env:
+         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+         CHAT_ID: ${{ secrets.CHAT_ID }}
+       run: node node_modules/@playwright/test/cli.js test exampleLive.spec.js
+       
+     - name: Upload test results (Screenshots)
+       if: always()
+       uses: actions/upload-artifact@v4
+       with:
+         name: playwright-results
+         path: test-results/
+         retention-days: 7
