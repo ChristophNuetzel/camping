@@ -29,35 +29,24 @@ async function sendTelegramPhoto(filePath, caption = '') {
    console.warn('Telegram credentials missing — skipping photo');
    return;
  }
- try {
-   if (!fs.existsSync(filePath)) {
-     console.warn('Screenshot file not found:', filePath);
-     return;
-   }
-   const stat = fs.statSync(filePath);
-   const sizeMB = stat.size / (1024 * 1024);
-   console.log(`Preparing to send photo (${sizeMB.toFixed(2)} MB) to Telegram...`);
+ if (!fs.existsSync(filePath)) {
+   console.warn('Screenshot file not found:', filePath);
+   return;
+ }
 
+ try {
    const form = new FormData();
-   form.append('chat_id', CHAT_ID);
+   form.append('chat_id', CHAT_ID.toString());
    form.append('photo', fs.createReadStream(filePath));
    if (caption) form.append('caption', caption);
 
+   const headers = form.getHeaders(); // sehr wichtig: enthält Boundary
+
    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
      method: 'POST',
+     headers,
      body: form
    });
-
-   if (!res.ok) {
-     const body = await res.text();
-     console.warn(`Telegram sendPhoto failed (${res.status}): ${body}`);
-   } else {
-     console.log('Telegram photo sent');
-   }
- } catch (e) {
-   console.warn('Failed to send Telegram photo:', e.message);
- }
-}
 
 // Robustes Entfernen/Akzeptieren von Cookie-Bannern (inkl. iubenda)
 async function acceptCookiesRobust(page) {
