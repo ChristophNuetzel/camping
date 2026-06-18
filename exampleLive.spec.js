@@ -35,7 +35,7 @@ test('test', async ({ page }) => {
 	}
   
   //Stellplatz wählen
-  await page.getByRole('strong').filter({ hasText: 'Stellplatz' }).click();
+  await page.locator('button:has-text("Stellplatz")').click();
   
   //Personen wählen 2x
   await page.locator('.dropdown-toggle.form-control.d-flex.justify-content-between.click-me').click();
