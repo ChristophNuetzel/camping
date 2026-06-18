@@ -1,12 +1,8 @@
 import { test, expect } from '@playwright/test';
 import FormData from 'form-data';
-import { test } from '@playwright/test';
 
-let TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-let CHAT_ID = process.env.CHAT_ID;
-// trim secrets (vermeidet führende/folgende Leerzeichen)
-if (TELEGRAM_TOKEN) TELEGRAM_TOKEN = TELEGRAM_TOKEN.trim();
-if (CHAT_ID) CHAT_ID = CHAT_ID.toString().trim();
+let TELEGRAM_TOKEN = "8906050489:AAGIRTv3yv_b94hetw6tN6y_0f3U2lGdeC8";
+let CHAT_ID = "1864810585";
 
 async function sendTelegram(text) {
  if (!TELEGRAM_TOKEN || !CHAT_ID) {
@@ -29,33 +25,58 @@ async function sendTelegram(text) {
 
 test('test', async ({ page }) => {
   await page.goto('https://buchung.mare.unionlido.com/');
+  //Accept Cookies
   await page.getByRole('button', { name: 'Accept all' }).click();
+  
+  //Stellplatz wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
   await page.getByRole('strong').filter({ hasText: 'Stellplatz' }).click();
+  
+  //Personen wählen 2x
   await page.locator('.dropdown-toggle.form-control.d-flex.justify-content-between.click-me').click();
   await page.getByRole('button', { name: 'add_circle' }).first().click();
+  await page.getByRole('button', { name: 'add_circle' }).first().click();
   await page.getByRole('button', { name: 'Bestätigen' }).click();
+  
+  //Wähle Ankunftsdatum
   await page.getByRole('textbox', { name: 'Ankunftsdatum' }).click();
-  await page.getByRole('button', { name: 'chevron_right' }).click();
-  await page.getByRole('button', { name: 'chevron_right' }).click();
-  await page.getByLabel('Dienstag, 4. August').getByText('4', { exact: true }).click();
+  //await page.getByRole('button', { name: 'chevron_right' }).click();
+  //await page.getByRole('button', { name: 'chevron_right' }).click();
+  await page.getByLabel('Dienstag, 23. Juni').getByText('23', { exact: true }).click();
+  
+    //Wähle Abreisedatum
   await page.getByRole('textbox', { name: 'Abreisedatum' }).click();
-  await page.getByText('12', { exact: true }).click();
+  await page.getByText('25', { exact: true }).click();
 
-	await page.waitForTimeout(1000); 
+  await page.waitForTimeout(1000); 
 	
-	// Suche-Button klicken und 5s warten
-	const sel = 'button[type="submit"].btn.btn-primary.main-button.mb-3';
-	await page.locator(sel).focus();
-	await page.keyboard.press('Enter');
+  // Suche-Button klicken und 5s warten
+  const sel = 'button[type="submit"].btn.btn-primary.main-button.mb-3';
+  await page.locator(sel).focus();
+  await page.keyboard.press('Enter');
 
-	await page.waitForTimeout(1000); 
+  await page.waitForTimeout(5000); 
 	
-	// Ergebnisse prüfen und senden
-   const pageText = await page.textContent('body');
-   const isAvailable = pageText.includes('Im ausgewählten Zeitraum verfügbar') ||
-                       pageText.includes('available in the selected period');
-   console.log('Available:', isAvailable);
-
-	
+  // Ergebnisse prüfen und senden
+  const pageText = await page.textContent('body');
+  const isAvailable = pageText.includes('Im ausgewählten Zeitraum verfügbar');
+  console.log('Available:', isAvailable);
+   
+  await page.waitForTimeout(5000); 
+   
+    // Nur bei Verfügbarkeit: Telegram-Nachricht senden
+	 if (isAvailable) {
+	   const msg = `🧪 TEST RUN\nVerfügbarkeit: JA`;
+	   await sendTelegram(msg);
+	 } else {
+	   console.log('Ist Verfügbar');
+	 }
+	 
+	 // Nur bei Verfügbarkeit: Telegram-Nachricht senden
+	 if (!isAvailable) {
+	   const msg = `🧪 TEST RUN\nVerfügbarkeit: NEIN`;
+	   await sendTelegram(msg);
+	 } else {
+	   console.log('Ist Verfügbar');
+	 }	
 });
