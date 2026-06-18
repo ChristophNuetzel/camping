@@ -66,7 +66,7 @@ test('test', async ({ page }) => {
    
     // Nur bei Verfügbarkeit: Telegram-Nachricht senden
 	 if (isAvailable) {
-	   const msg = `🧪 TEST RUN\nVerfügbarkeit: JA`;
+	   const msg = `🧪 TEST RUN\nVerfügbarkeit Probe: JA`;
 	   await sendTelegram(msg);
 	 } else {
 	   console.log('Ist Verfügbar');
@@ -74,7 +74,7 @@ test('test', async ({ page }) => {
 	 
 	 // Nur bei Verfügbarkeit: Telegram-Nachricht senden
 	 if (!isAvailable) {
-	   const msg = `🧪 TEST RUN\nVerfügbarkeit: NEIN`;
+	   const msg = `🧪 TEST RUN\nVerfügbarkeit Probe: NEIN`;
 	   await sendTelegram(msg);
 	 } else {
 	   console.log('Ist Verfügbar');
