@@ -35,7 +35,6 @@ test('test', async ({ page }) => {
 	}
   
   //Stellplatz wählen
-  await page.getByRole('button', { name: 'Wählen' }).click();
   await page.getByRole('strong').filter({ hasText: 'Stellplatz' }).click();
   
   //Personen wählen 2x
