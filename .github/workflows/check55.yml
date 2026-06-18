@@ -38,12 +38,6 @@ jobs:
          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
          CHAT_ID: ${{ secrets.CHAT_ID }}
        run: node node_modules/@playwright/test/cli.js test example.spec.js
-
-     - name: Run Live
-       env:
-         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-         CHAT_ID: ${{ secrets.CHAT_ID }}
-       run: node node_modules/@playwright/test/cli.js test exampleLive.spec.js
        
      - name: Upload test results (Screenshots)
        if: always()
