@@ -28,7 +28,7 @@ test('test', async ({ page }) => {
   
   await page.waitForTimeout(5000); 
   //Accept Cookies
-  await page.getByRole('button', { name: 'Accept all' }).click();
+  //await page.getByRole('button', { name: 'Accept all' }).click();
   
   //Stellplatz wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
