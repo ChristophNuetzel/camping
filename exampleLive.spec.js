@@ -28,7 +28,11 @@ test('test', async ({ page }) => {
   
   await page.waitForTimeout(5000); 
   //Accept Cookies
-  await page.getByRole('button', { name: 'Accept all' }).click();
+  try {
+	 await page.locator('button:has-text("Accept all"), button:has-text("Alle akzeptieren")').first().click({ timeout: 3000 });
+	} catch (e) {
+	 // kein Cookie-Banner sichtbar → weiter ohne Abbruch
+	}
   
   //Stellplatz wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
