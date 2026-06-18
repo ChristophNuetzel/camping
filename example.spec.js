@@ -26,7 +26,7 @@ async function sendTelegram(text) {
 test('test', async ({ page }) => {
   await page.goto('https://buchung.mare.unionlido.com/');
   //Accept Cookies
-  await page.getByRole('button', { name: 'Accept all' }).click();
+  //await page.getByRole('button', { name: 'Accept all' }).click();
   
   //Stellplatz wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
