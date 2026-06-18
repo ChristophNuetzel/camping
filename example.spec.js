@@ -1,7 +1,7 @@
 import { test } from '@playwright/test';
 
-const TELEGRAM_TOKEN = "8906050489:AAGIRTv3yv_b94hetw6tN6y_0f3U2lGdeC8";
-const CHAT_ID = "1864810585";
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
 
 async function sendTelegram(text) {
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
@@ -18,7 +18,7 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
   await page.goto('https://buchung.mare.unionlido.com/');
 
   // Cookies akzeptieren
-  await page.getByRole('button', { name: 'Accept all' }).click();
+  await page.getByRole('button', { name: 'Accept all' }).click(timeout: 60000);
 
   // Unterkunftstyp wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
