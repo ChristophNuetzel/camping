@@ -18,7 +18,32 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
   await page.goto('https://buchung.mare.unionlido.com/');
 
   // Cookies akzeptieren
-  await page.getByRole('button', { name: 'Accept all' }).click(timeout: 60000);
+  async function acceptCookiesRobust(page) {
+ await page.waitForLoadState('domcontentloaded');
+
+ const cookieLocators = [
+   page.getByRole('button', { name: /accept all/i }),
+   page.locator('button:has-text("Accept all")'),
+   page.locator('text=Accept all'),
+   page.locator('text=Alle akzeptieren'),
+   page.locator('button:has-text("Alle akzeptieren")'),
+   page.locator('button:has-text("Akzeptieren")'),
+   page.locator('#onetrust-accept-btn-handler'), // OneTrust common id
+   page.locator('[aria-label*="accept" i]'),
+ ];
+
+ let clicked = false;
+ for (const loc of cookieLocators) {
+   try {
+     if (await loc.count() > 0) {
+       await loc.first().click({ timeout: 5000 });
+       clicked = true;
+       break;
+     }
+   } catch (e) {
+     // Klick könnte fehlschlagen -> nächster Fallback
+   }
+ }
 
   // Unterkunftstyp wählen
   await page.getByRole('button', { name: 'Wählen' }).click();
