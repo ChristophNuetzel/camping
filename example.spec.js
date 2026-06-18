@@ -2,10 +2,13 @@ import fs from 'fs';
 import FormData from 'form-data';
 import { test } from '@playwright/test';
 
-test.setTimeout(120000); // Gesamt-Testtimeout 2 Minuten
+test.setTimeout(120000);
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
+let TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+let CHAT_ID = process.env.CHAT_ID;
+// trim secrets (vermeidet führende/folgende Leerzeichen)
+if (TELEGRAM_TOKEN) TELEGRAM_TOKEN = TELEGRAM_TOKEN.trim();
+if (CHAT_ID) CHAT_ID = CHAT_ID.toString().trim();
 
 async function sendTelegram(text) {
  if (!TELEGRAM_TOKEN || !CHAT_ID) {
@@ -13,140 +16,132 @@ async function sendTelegram(text) {
    return;
  }
  try {
-   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+   const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
      method: 'POST',
      headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({ chat_id: CHAT_ID, text })
    });
+   const body = await res.text();
+   if (!res.ok) console.warn('sendMessage failed', res.status, body);
+   else console.log('sendMessage OK');
  } catch (e) {
    console.warn('Failed to send Telegram message:', e.message);
  }
 }
 
-async function sendTelegramPhoto(filePath, caption = '') {
+// Versuche sendPhoto; falls Telegram 400/Fehler => sendDocument als Fallback
+async function sendTelegramFile(filePath, caption = '') {
  if (!TELEGRAM_TOKEN || !CHAT_ID) {
-   console.warn('Telegram credentials missing — skipping photo');
+   console.warn('Telegram credentials missing — skipping file');
    return;
  }
  if (!fs.existsSync(filePath)) {
-   console.warn('Screenshot file not found:', filePath);
+   console.warn('File not found:', filePath);
    return;
  }
 
- try {
-   const stat = fs.statSync(filePath);
-   const sizeMB = stat.size / (1024 * 1024);
-   console.log(`Preparing to send photo (${sizeMB.toFixed(2)} MB) to Telegram...`);
-
+ const trySend = async (endpoint, fieldName) => {
    const form = new FormData();
-   form.append('chat_id', CHAT_ID.toString());
-   form.append('photo', fs.createReadStream(filePath));
+   form.append('chat_id', CHAT_ID);
+   form.append(fieldName, fs.createReadStream(filePath));
    if (caption) form.append('caption', caption);
-
    const headers = form.getHeaders();
-
-   const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendPhoto`, {
-     method: 'POST',
-     headers,
-     body: form
-   });
-
-   const text = await res.text();
-   if (!res.ok) {
-     console.warn(`Telegram sendPhoto failed (${res.status}): ${text}`);
-   } else {
-     console.log('Telegram photo sent:', text);
-   }
- } catch (e) {
-   console.warn('Failed to send Telegram photo:', e.message);
- }
-}
-
-async function acceptCookiesRobust(page) {
- await page.waitForLoadState('domcontentloaded');
-
- const locators = [
-   page.getByRole('button', { name: /accept all/i }),
-   page.locator('button:has-text("Accept all")'),
-   page.locator('text=Accept all'),
-   page.locator('text=Alle akzeptieren'),
-   page.locator('button:has-text("Alle akzeptieren")'),
-   page.locator('button:has-text("Akzeptieren")'),
-   page.locator('#onetrust-accept-btn-handler'),
-   page.locator('#iubenda-accept-btn, #iubenda-accept-all, .iubenda-cs-accept'),
-   page.locator('[aria-label*="accept" i]')
- ];
-
- for (const loc of locators) {
    try {
-     if (await loc.count() > 0) {
-       await loc.first().click({ timeout: 3000 });
-       await page.waitForTimeout(300);
-       const stillIntercepts = await page.evaluate(() => {
-         const banner = document.querySelector('#iubenda-cs-banner, .iubenda-cs, #iubenda-cs-overlay, .iubenda-cs-overlay');
-         if (!banner) return false;
-         const style = window.getComputedStyle(banner);
-         return !(style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none');
-       });
-       if (!stillIntercepts) return true;
-     }
-   } catch (e) { /* fallback */ }
- }
-
- // check if banner is in iframes
- for (const frame of page.frames()) {
-   try {
-     const fLoc = frame.locator('button:has-text("Accept all"), button:has-text("Accept")');
-     if (await fLoc.count() > 0) {
-       await fLoc.first().click({ timeout: 3000 });
-       await page.waitForTimeout(300);
-       return true;
-     }
-   } catch (e) { /* ignore */ }
- }
-
- // last resort: neutralize overlay
- try {
-   await page.evaluate(() => {
-     const selectors = ['#iubenda-cs-banner', '.iubenda-cs', '#iubenda-cs-overlay', '.iubenda-cs-overlay', '#iubenda-consent'];
-     selectors.forEach(sel => {
-       document.querySelectorAll(sel).forEach(el => {
-         el.style.pointerEvents = 'none';
-         el.style.display = 'none';
-         el.style.visibility = 'hidden';
-       });
+     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/${endpoint}`, {
+       method: 'POST',
+       headers,
+       body: form
      });
-   });
-   await page.waitForTimeout(250);
-   return true;
- } catch (e) {
-   console.warn('Failed to neutralize cookie overlay:', e.message);
-   return false;
+     const text = await res.text();
+     return { ok: res.ok, status: res.status, body: text };
+   } catch (e) {
+     return { ok: false, error: e.message };
+   }
+ };
+
+ // 1) Versuch: sendPhoto
+ const photoRes = await trySend('sendPhoto', 'photo');
+ if (photoRes.ok) {
+   console.log('sendPhoto OK');
+   return;
  }
+ console.warn('sendPhoto failed:', photoRes.status ?? '', photoRes.body ?? photoRes.error);
+
+ // 2) Fallback: sendDocument (robuster)
+ const docRes = await trySend('sendDocument', 'document');
+ if (docRes.ok) {
+   console.log('sendDocument OK');
+   return;
+ }
+ console.warn('sendDocument failed:', docRes.status ?? '', docRes.body ?? docRes.error);
 }
 
+// Robustes Warten auf die Ergebnisseite
+async function waitForResultsRendered(page, timeout = 15000) {
+ // Prüfe auf typische Ergebnis-Indikatoren: deutscher/englischer Text oder bekannte Container-Klassen
+ const start = Date.now();
+ while (Date.now() - start < timeout) {
+   // 1) sichtbarer Text im Body
+   const bodyText = await page.evaluate(() => document.body.innerText || '');
+   if (bodyText.includes('Im ausgewählten Zeitraum verfügbar') ||
+       bodyText.includes('available in the selected period') ||
+       bodyText.match(/keine.*Verfügbarkeit/i) ||
+       bodyText.match(/no.*availability/i)) {
+     return true;
+   }
+   // 2) spezifische Ergebnis-Container im DOM
+   const found = await page.evaluate(() => {
+     const selectors = ['.results', '.search-results', '.availability', '.camping-results', '#results', '.no-results'];
+     return selectors.some(s => !!document.querySelector(s));
+   });
+   if (found) return true;
+
+   // kurz warten und erneut prüfen
+   await page.waitForTimeout(250);
+ }
+ // Timeout erreicht — false zurückgeben (Screenshot trotzdem möglich als Fallback)
+ return false;
+}
+
+// Datum-Helfer (dd/MM/yyyy) und readonly-Setzer
 function formatDDMMYYYY(d) {
  const dd = String(d.getDate()).padStart(2, '0');
  const mm = String(d.getMonth() + 1).padStart(2, '0');
  const yyyy = d.getFullYear();
  return `${dd}/${mm}/${yyyy}`;
 }
-
-async function setReadonlyDateInput(page, selector, dateString) {
- await page.evaluate(({ selector, dateString }) => {
+async function setReadonlyDateInput(page, selector, value) {
+ await page.evaluate(({ selector, value }) => {
    const el = document.querySelector(selector);
    if (!el) return false;
    el.removeAttribute('readonly');
-   el.value = dateString;
+   el.value = value;
    el.dispatchEvent(new Event('input', { bubbles: true }));
    el.dispatchEvent(new Event('change', { bubbles: true }));
    el.dispatchEvent(new Event('blur', { bubbles: true }));
    el.setAttribute('readonly', '');
    return true;
- }, { selector, dateString });
+ }, { selector, value });
  await page.waitForTimeout(200);
- const current = await page.$eval(selector, el => el.value).catch(() => null);
- return current === dateString;
+ const cur = await page.$eval(selector, el => el.value).catch(() => null);
+ return cur === value;
+}
+
+// Simplified cookie-neutralizer for overlays (iubenda etc.)
+async function neutralizeCookieOverlay(page) {
+ try {
+   await page.evaluate(() => {
+     const sels = ['#iubenda-cs-banner', '.iubenda-cs', '#iubenda-cs-overlay', '.iubenda-cs-overlay', '#onetrust-consent-sdk'];
+     sels.forEach(sel => document.querySelectorAll(sel).forEach(el => {
+       el.style.pointerEvents = 'none';
+       el.style.display = 'none';
+       el.style.visibility = 'hidden';
+     }));
+   });
+   await page.waitForTimeout(200);
+ } catch (e) {
+   // ignore
+ }
 }
 
 test('Verfügbarkeit prüfen', async ({ page }) => {
@@ -155,58 +150,47 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
 
  if (!fs.existsSync('test-results')) fs.mkdirSync('test-results', { recursive: true });
 
- // screenshotPath wird erst hier gesetzt, nach dem Suche-Block
  let screenshotPath = null;
 
  try {
    await page.goto('https://buchung.mare.unionlido.com/');
 
-   await acceptCookiesRobust(page);
-
-   // ensure no overlay intercepts before clicking
-   await page.waitForFunction(() => {
-     const els = document.querySelectorAll('#iubenda-cs-banner, .iubenda-cs, #iubenda-cs-overlay, .iubenda-cs-overlay');
-     for (const el of els) {
-       const st = window.getComputedStyle(el);
-       if (st.display !== 'none' && st.visibility !== 'hidden' && st.pointerEvents !== 'none') return false;
+   // Versuche Cookie-Banner zu akzeptieren, sonst neutralisieren
+   try {
+     // versuche typische Buttons
+     const acceptBtns = [
+       page.getByRole('button', { name: /accept all/i }),
+       page.locator('button:has-text("Accept all")'),
+       page.locator('text=Accept all'),
+       page.locator('text=Alle akzeptieren'),
+       page.locator('#onetrust-accept-btn-handler'),
+       page.locator('#iubenda-accept-btn, #iubenda-accept-all')
+     ];
+     let accepted = false;
+     for (const b of acceptBtns) {
+       if (await b.count() > 0) {
+         try { await b.first().click({ timeout: 3000 }); accepted = true; break; } catch {}
+       }
      }
-     return true;
-   }, { timeout: 5000 }).catch(() => { /* ignore */ });
+     if (!accepted) await neutralizeCookieOverlay(page);
+   } catch (e) { await neutralizeCookieOverlay(page); }
 
-   // Unterkunftstyp wählen
+   // Unterkunftstyp
    await page.getByRole('button', { name: 'Wählen' }).click();
    await page.getByRole('strong').filter({ hasText: 'Stellplatz' }).click();
 
-   // Gäste - protected by try/catch to capture errors early
+   // Gäste - schützen mit screenshot bei Fehler
    try {
      await page.locator('.dropdown-toggle.form-control.d-flex.justify-content-between.click-me').click();
-
-     await page.waitForFunction(() => {
-       const els = document.querySelectorAll('#iubenda-cs-banner, .iubenda-cs, #iubenda-cs-overlay, .iubenda-cs-overlay');
-       for (const el of els) {
-         const st = window.getComputedStyle(el);
-         if (st.display !== 'none' && st.visibility !== 'hidden' && st.pointerEvents !== 'none') return false;
-       }
-       return true;
-     }, { timeout: 3000 });
-
      await page.getByRole('button', { name: 'add_circle' }).first().click();
      await page.getByRole('button', { name: 'add_circle' }).first().click();
      await page.getByRole('button', { name: 'add_circle' }).nth(1).click();
    } catch (err) {
-     // capture screenshot immediately if guests interaction fails
-     try {
-       const errShot = `test-results/error-${Date.now()}.png`;
-       const pageOpen = (typeof page.isClosed === 'function') ? !page.isClosed() : true;
-       if (pageOpen) {
-         await page.screenshot({ path: errShot, fullPage: true });
-         console.log('Error screenshot saved to', errShot);
-         await sendTelegramPhoto(errShot, `Fehler beim Gäste-Handling: ${err.message}`);
-       } else {
-         fs.writeFileSync(`test-results/error-${Date.now()}.txt`, `Page already closed. Error: ${err.message}`);
-       }
-     } catch (sErr) {
-       console.error('Failed to capture screenshot on error:', sErr.message);
+     const errShot = `test-results/error-guests-${Date.now()}.png`;
+     if (!page.isClosed?.() && await page.title().catch(() => true)) {
+       await page.screenshot({ path: errShot, fullPage: true });
+       console.log('Error screenshot saved:', errShot);
+       await sendTelegramFile(errShot, `Fehler beim Gäste-Handling: ${err.message}`);
      }
      throw err;
    }
@@ -220,44 +204,45 @@ test('Verfügbarkeit prüfen', async ({ page }) => {
    // Datum setzen
    const arrivalStr = formatDDMMYYYY(new Date(2026, 7, 2));
    const departureStr = formatDDMMYYYY(new Date(2026, 7, 12));
-   const ok1 = await setReadonlyDateInput(page, '#arrivalDate', arrivalStr);
-   const ok2 = await setReadonlyDateInput(page, '#departureDate', departureStr);
-   if (!ok1 || !ok2) console.warn('Datum-Felder eventuell nicht gesetzt (fallback evtl. nötig)');
+   await setReadonlyDateInput(page, '#arrivalDate', arrivalStr);
+   await setReadonlyDateInput(page, '#departureDate', departureStr);
 
-   // --- HIER: Suche klicken und warten; direkt danach erst Screenshot erzeugen ---
+   // Suche klicken und ROBUST auf das Ergebnis warten
    await page.getByRole('button', { name: 'suche' }).click();
-   await page.waitForLoadState('networkidle');
-   await page.waitForTimeout(3000);
-
-   // Screenshot NUR hier erstellen (letzte Seite)
+   // Warte auf eindeutige Indikatoren der Ergebnisseite (Text oder Ergebnis-Container)
+   const ok = await waitForResultsRendered(page, 20000);
+   if (!ok) {
+     console.warn('Ergebnisseite offenbar nicht vollständig innerhalb Timeout gerendert - mache trotzdem Screenshot (Fallback)');
+     await page.waitForTimeout(1000);
+   }
+   // Screenshot NUR hier
    screenshotPath = `test-results/final-${Date.now()}.png`;
    await page.screenshot({ path: screenshotPath, fullPage: true });
    console.log('Final screenshot saved to', screenshotPath);
 
-   // Ergebnis prüfen / Text senden
+   // Ergebnisse prüfen und senden
    const pageText = await page.textContent('body');
    const isAvailable = pageText.includes('Im ausgewählten Zeitraum verfügbar') ||
                        pageText.includes('available in the selected period');
    console.log('Available:', isAvailable);
 
-   // Telegram: Text + Foto
    await sendTelegram(`🧪 TEST RUN\nVerfügbarkeit: ${isAvailable ? 'JA ✅' : 'NEIN ❌'}`);
-   await sendTelegramPhoto(screenshotPath, `📸 Verfügbarkeitsprüfung - ${isAvailable ? 'JA' : 'NEIN'}`);
+   await sendTelegramFile(screenshotPath, `📸 Verfügbarkeitsprüfung - ${isAvailable ? 'JA' : 'NEIN'}`);
 
  } catch (err) {
    console.error('Test failed with error:', err.message);
    throw err;
  } finally {
-   // kein neuer Screenshot mehr hier; nur Fallback falls kein Screenshot erstellt wurde
+   // nur Fallback screenshot, wenn Hauptbild nicht erstellt wurde
    try {
      if (!screenshotPath) {
-       const pageOpen = (typeof page.isClosed === 'function') ? !page.isClosed() : true;
-       if (pageOpen) {
-         const fallback = `test-results/fallback-${Date.now()}.png`;
+       const fallback = `test-results/fallback-${Date.now()}.png`;
+       if (!page.isClosed?.()) {
          await page.screenshot({ path: fallback, fullPage: true });
          console.log('Fallback screenshot saved to', fallback);
+         await sendTelegramFile(fallback, '📸 Fallback Screenshot (Fehlerfall)');
        } else {
-         fs.writeFileSync(`test-results/fallback-${Date.now()}.txt`, 'Page already closed - no screenshot');
+         fs.writeFileSync(`test-results/fallback-${Date.now()}.txt`, 'Page closed, no screenshot');
        }
      }
    } catch (e) {
